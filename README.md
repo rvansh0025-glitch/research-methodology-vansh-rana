@@ -12,7 +12,7 @@ LLM coding assistants sometimes recommend packages that do not exist, and attack
 | `code/` | Research code: extraction-and-verification pipeline, metrics, prompt sampling, GLMM analysis, tests |
 | `research-paper/` | IEEE paper, Overleaf source (`main.tex`) |
 | `research-proposal/` | Research proposal (PDF) |
-| `presentation/` | 5-slide Beamer presentation (PDF + `beamer.tex`) |
+| `presentation/` | 5-slide Beamer presentation, "What I Learnt" (`beamer.tex`) |
 | `literature-survey/` | Literature survey table |
 | `dashboard/` | Individual AQI dashboard (Excel) and screenshot |
 | `assignments/` | Worksheets 1–3 and midsem solution with summaries |

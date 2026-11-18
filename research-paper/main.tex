@@ -1,0 +1,229 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+\usepackage[hidelinks]{hyperref}
+
+\begin{document}
+
+\title{Phantom Dependencies: Package Hallucination in LLM-Generated Code Across Models, Programming Languages, Prompt Languages and Guardrail Prompts}
+
+\author{
+\IEEEauthorblockN{Vansh Rana}
+\IEEEauthorblockA{SAP ID: 590017823}
+\and
+\IEEEauthorblockN{Anirudh Singh Aswal}
+\IEEEauthorblockA{SAP ID: 590017310}
+\and
+\IEEEauthorblockN{Hardik Trivedi}
+\IEEEauthorblockA{SAP ID: 590016152}
+\and
+\IEEEauthorblockN{Yash Shrivastava}
+\IEEEauthorblockA{SAP ID: 590011391}
+}
+
+\maketitle
+
+\begin{abstract}
+LLM coding assistants sometimes recommend software packages that do not exist, and attackers can register those names on public registries to distribute malware, an attack known as \emph{slopsquatting}. We present a controlled factorial study of package hallucination in four current LLMs across 240 Python and JavaScript coding prompts sampled from a publicly available package-hallucination prompt dataset, two prompting conditions (baseline and a guardrail system prompt), and two prompt languages (English and Hindi), totalling 23,040 generations. We extract every import and install statement, map import names to distribution names, and classify each reference against time-anchored PyPI and npm snapshots, separating genuinely non-existent names from names that already appear to be squatted. Overall, [X.X\%] of third-party package references were hallucinated (95\% CI [X.X--X.X]). Rates were [higher/lower] for JavaScript than Python (OR = [X.XX]) and rose with task difficulty and package recency. The guardrail prompt [reduced/did not reduce] the odds of hallucination (OR = [X.XX]), while Hindi prompts [increased/did not change] them (OR = [X.XX]). [XX\%] of hallucinated names recurred across repeated samples, and [N] names were produced by all four models. Because our prompts come from the dataset of Spracklen et al., our baseline rates are directly comparable to theirs. We release our pipeline and, after coordinated disclosure, our generated outputs.
+\end{abstract}
+
+\begin{IEEEkeywords}
+large language models, code generation, package hallucination, slopsquatting, software supply chain security, multilingual evaluation
+\end{IEEEkeywords}
+
+\section{Introduction}
+LLM-based coding assistants are now a routine part of software development. When an assistant references a package, developers frequently copy the accompanying \texttt{pip install} or \texttt{npm install} command without checking it, and agentic tools increasingly run such commands themselves. If the referenced package does not exist, an attacker who registers the name first gains code execution on every machine that installs it. Because LLMs tend to reproduce the same invented names, these names are discoverable and therefore exploitable \cite{spracklen2025,socket2025}.
+
+Spracklen et al.~\cite{spracklen2025} showed at scale that package hallucination is common and that hallucinated names recur. Three questions, however, remain unanswered for practitioners deploying today's assistants. First, do frontier models released in 2025--2026 still hallucinate packages at meaningful rates \cite{churilov2026}? Second, can a free, one-line system-prompt guardrail reduce the problem without retrieval infrastructure or fine-tuning? Third, does the language of the prompt matter? Hundreds of millions of developers are non-native English speakers, and LLM quality is known to fall in lower-resource languages \cite{mega2023}, yet no study has measured package hallucination for non-English prompts. This paper makes four contributions:
+\begin{itemize}
+\item A factorial measurement of package hallucination across four current models, two programming languages, task difficulty, prompt source and package recency, using prompts from a public benchmark dataset \cite{spracklen2025,dataset2025} so results are directly comparable with prior work.
+\item The first estimate of the effect of prompt language (Hindi vs.\ English) on package hallucination.
+\item A controlled test of a zero-cost guardrail prompt, including its interaction with prompt language.
+\item A time-anchored verification method that distinguishes non-existent names from already-squatted ones, released as open-source tooling.
+\end{itemize}
+
+\section{Background and Related Work}
+\subsection{Software supply chain attacks}
+Open-source registries have long been targeted through typosquatting, combosquatting and dependency confusion \cite{ohm2020,vu2020,ladisa2023}. These attacks rely on human error or naming leaks. Slopsquatting instead exploits names that an LLM has primed developers to request \cite{socket2025}.
+
+\subsection{Hallucination in code generation}
+Hallucination in natural-language generation is well surveyed \cite{ji2023}, and code-specific taxonomies classify errors such as non-existent APIs and incorrect dependencies \cite{liu2024}. Security weaknesses in assistant-generated code more broadly were documented by Pearce et al.~\cite{pearce2022}.
+
+\subsection{Package hallucination}
+Practitioner reports first demonstrated that ChatGPT recommends non-existent packages and that such names can be registered and downloaded \cite{lanyado2023,lanyado2024}. Spracklen et al.~\cite{spracklen2025} analysed 576,000 samples from 16 models, reporting average rates of at least 5.2\% for commercial and 21.7\% for open-weight models, 205,474 unique hallucinated names, and 43\% recurrence across ten repeated queries. They found that retrieval augmentation, self-refinement and fine-tuning reduce but do not eliminate hallucination. A 2026 re-evaluation on frontier models reports a narrower but persistent range \cite{churilov2026}. Our work differs by isolating prompt language and a no-cost guardrail as experimental factors, and by anchoring verification in time to detect squatting.
+
+\section{Methodology}
+\subsection{Experimental design}
+We use a within-task factorial design: Model (4) $\times$ Prompt condition (2) $\times$ Prompt language (2). Programming language, difficulty, prompt source and recency are task-level covariates. Every task appears in every cell.
+
+\subsection{Task corpus}
+We do not build a new prompt set. Instead, we sample from the publicly available dataset released by Spracklen et al.~\cite{spracklen2025,dataset2025}, which contains roughly 19,500 coding prompts in Python and JavaScript drawn from two sources: (i) the most-upvoted Stack Overflow questions for 240 manually selected programming tags, and (ii) LLM-generated coding prompts based on descriptions of popular PyPI and npm packages. Each source is split into a segment tied to 2023 and a segment from before 2023, which we use as our recency variable.
+
+Our corpus contains 240 prompts, 120 Python and 120 JavaScript, sampled with stratification by language, source (Stack Overflow vs.\ LLM-generated) and time segment (2023 vs.\ pre-2023), giving 30 prompts per cell. Sampling uses a fixed random seed ([seed]) and is pre-registered at [registry/OSF link]. Two annotators labelled difficulty (easy, medium, hard) using a rubric; agreement was Cohen's $\kappa$ = [0.XX] \cite{cohen1960}. Using an existing public dataset reduces prompt-selection bias and lets us compare our English-baseline rates directly with those reported in \cite{spracklen2025}.
+
+\subsection{Prompt languages and conditions}
+Task descriptions were translated into Hindi and back-translated by independent bilingual annotators; code identifiers and API names were kept in English. The baseline system prompt was ``You are a helpful coding assistant.'' The guardrail prompt added: ``Only use well-established, widely used packages. If you are not certain a package exists on PyPI or npm, say so instead of importing it.''
+
+\subsection{Models and sampling}
+We queried [Model A (version, date)], [Model B], [Model C] and [Model D, open-weight] via their APIs between [dates]. Each task--cell combination was sampled once at temperature 0 and five times at temperature 0.7, giving $240\times4\times2\times2\times6 = 23{,}040$ generations.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=3mm,
+  box/.style={draw, rounded corners=2pt, align=center, font=\footnotesize,
+              text width=0.88\columnwidth, inner sep=3pt},
+  arr/.style={-{Stealth[length=2mm]}, thick}]
+\node[box] (a) {240 tasks $\times$ 4 models $\times$ 2 conditions $\times$ 2 languages $\times$ 6 samples};
+\node[box, below=of a] (b) {Extract imports, \texttt{require()}, install commands, manifests};
+\node[box, below=of b] (c) {Filter stdlib, built-ins, relative and locally defined names};
+\node[box, below=of c] (d) {Map import name $\rightarrow$ distribution name};
+\node[box, below=of d] (e) {Check against frozen PyPI / npm snapshots at $T_0$};
+\node[box, below=of e] (f) {Valid --- Hallucinated --- Suspect-squatted --- Ambiguous};
+\foreach \x/\y in {a/b,b/c,c/d,d/e,e/f} \draw[arr] (\x) -- (\y);
+\end{tikzpicture}
+\caption{Extraction and verification pipeline.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Extraction and verification}
+Fig.~\ref{fig:pipeline} summarises the pipeline. Python code was parsed with the \texttt{ast} module; JavaScript with a standards-compliant parser. Install commands and manifest files were extracted with regular expressions. Standard-library modules, relative imports and names defined within the response were removed. Import names were mapped to distribution names (e.g., \texttt{cv2}$\rightarrow$\texttt{opencv-python}) using package metadata and a curated table. Each distribution name was checked against PyPI and npm snapshots frozen at $T_0$ = [date].
+
+References were classified as \emph{Valid}, \emph{Hallucinated} (absent at $T_0$), \emph{Suspect-squatted} (present, but first published after the model's training cutoff with negligible downloads or no source repository) or \emph{Ambiguous}. Ambiguous cases ([N]) were labelled by two annotators ($\kappa$ = [0.XX]).
+
+\subsection{Metrics and analysis}
+We report the package-level hallucination rate (hallucinated / all third-party references), the response-level rate (share of responses with at least one hallucinated reference), the within-model repeat rate (share of hallucinated names appearing in $\geq 2$ of 6 samples for a task--cell), and cross-model overlap (Jaccard similarity of hallucinated-name sets). Proportions carry Wilson 95\% intervals \cite{wilson1927}.
+
+Inference uses a binomial GLMM at package-reference level fitted with \texttt{lme4} \cite{bates2015}:
+\begin{multline}
+\operatorname{logit} P(h_{ij}=1) = \beta_0 + \beta_1\,\text{Model} + \beta_2\,\text{Lang} + \beta_3\,\text{Diff} \\
++ \beta_4\,\text{Recency} + \beta_5\,\text{Source} + \beta_6\,\text{Guard} + \beta_7\,\text{Hindi} \\
++ \beta_8\,(\text{Guard}\times\text{Hindi}) + u_{\text{task}} + v_{\text{resp}}
+\end{multline}
+with random intercepts for task and response. Holm correction \cite{holm1979} was applied across the six hypothesis tests.
+
+\section{Results}
+\subsection{RQ1: Overall prevalence}
+The [23,040] generations contained [N] third-party package references, of which [N] ([X.X\%], 95\% CI [X.X--X.X]) were hallucinated and [N] ([X.X\%]) were suspect-squatted. [X.X\%] of responses contained at least one hallucinated reference (Table~\ref{tab:bymodel}). For comparison, Spracklen et al.~\cite{spracklen2025} reported at least 5.2\% for commercial and 21.7\% for open-source models on the same prompt pool; our English-baseline rates were [higher/lower/similar].
+
+\begin{table}[t]
+\caption{Hallucination Rate by Model and Programming Language}
+\label{tab:bymodel}
+\centering
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+& \multicolumn{2}{c}{Python} & \multicolumn{2}{c}{JavaScript} \\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+Model & Pkg \% & Resp \% & Pkg \% & Resp \% \\
+\midrule
+[Model A] & [--] & [--] & [--] & [--] \\
+[Model B] & [--] & [--] & [--] & [--] \\
+[Model C] & [--] & [--] & [--] & [--] \\
+[Model D] & [--] & [--] & [--] & [--] \\
+\midrule
+All       & [--] & [--] & [--] & [--] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{GLMM Fixed Effects (Odds Ratios, Holm-Adjusted)}
+\label{tab:glmm}
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Predictor & OR & 95\% CI & $p_{\text{adj}}$ \\
+\midrule
+JavaScript (vs.\ Python)       & [--] & [--] & [--] \\
+Medium (vs.\ easy)             & [--] & [--] & [--] \\
+Hard (vs.\ easy)               & [--] & [--] & [--] \\
+2023 segment (vs.\ pre-2023)   & [--] & [--] & [--] \\
+LLM-generated (vs.\ SO)        & [--] & [--] & [--] \\
+Model B (vs.\ A)               & [--] & [--] & [--] \\
+Model C (vs.\ A)               & [--] & [--] & [--] \\
+Model D (vs.\ A)               & [--] & [--] & [--] \\
+Guardrail prompt               & [--] & [--] & [--] \\
+Hindi prompt                   & [--] & [--] & [--] \\
+Guardrail $\times$ Hindi       & [--] & [--] & [--] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{RQ2: Model, language, difficulty, source and recency}
+Table~\ref{tab:glmm} reports the GLMM. [Describe direction and significance of each fixed effect: JavaScript vs.\ Python (H1), hard vs.\ easy and 2023 vs.\ pre-2023 prompts (H2), Stack Overflow vs.\ LLM-generated prompts, open-weight vs.\ proprietary (H3).] The task random-intercept variance was [X.XX], indicating [substantial/modest] task-to-task heterogeneity.
+
+\subsection{RQ3: Guardrail prompt}
+The guardrail prompt changed the package-level rate from [X.X\%] to [X.X\%] (OR = [X.XX]). [Report whether the guardrail also reduced the total number of third-party packages referenced, and whether it increased refusals or explicit uncertainty statements, since a reduction could reflect fewer dependencies rather than more accurate ones.]
+
+\subsection{RQ4: Prompt language}
+Hindi prompts yielded [X.X\%] versus [X.X\%] for English (OR = [X.XX]). The Guardrail $\times$ Hindi interaction was [significant/non-significant] (OR = [X.XX]), indicating that the guardrail [was/was not] less effective in Hindi. [Fig.~X: interaction plot.]
+
+\subsection{RQ5: Recurrence and overlap}
+[XX\%] of hallucinated names recurred in at least two of six samples for the same task--cell, and [XX\%] recurred in all six. Pairwise Jaccard overlap between models ranged from [0.XX] to [0.XX]; [N] names were produced by all four models. [Characterise naming patterns: off-by-one typos, cross-ecosystem borrowing (Python name in npm or vice versa), and plausible compound names.]
+
+\section{Discussion}
+[Interpret findings against prior work \cite{spracklen2025,churilov2026}: has the range narrowed on current models?] For practitioners, the results suggest [whether a guardrail prompt is sufficient, or only a first layer beneath registry-side checks and allow-lists]. The prompt-language result has direct implications for [multilingual developer populations and tool vendors serving them]. The suspect-squatted category shows that [a simple existence check underestimates risk because some invented names are already registered]. Recurrence across models implies that [a shared blocklist of commonly hallucinated names could be maintained by registries].
+
+\section{Threats to Validity}
+\textit{Internal.} Temperature introduces randomness; we mitigate it with six samples per cell and a response-level random effect. Annotator judgement in difficulty and ambiguous cases is reported with $\kappa$.
+
+\textit{External.} Models are updated silently; we logged exact identifiers and completed each model's collection within one week. Raw API calls differ from IDE and agentic interfaces, which inject additional context. Prompts come from one public dataset \cite{dataset2025} and may not represent all development work; Stack Overflow questions may also appear in models' training data, which could lower hallucination rates on those prompts. Stratified, seeded sampling limits selection bias.
+
+\textit{Construct.} Registry existence is a proxy for validity: a name absent at $T_0$ may have existed earlier and been removed, and import-to-distribution mapping may misclassify rare packages. Translation quality may confound the Hindi effect; back-translation and English-only identifiers reduce this.
+
+\section{Ethical Considerations}
+We did not register any hallucinated name. [N] already-registered names judged potentially malicious were reported to the PyPI and npm security teams on [date]. The full list of hallucinated names was shared with registry maintainers before public release.
+
+\section{Conclusion}
+[Two to three sentences summarising the main numerical findings for RQ1--RQ5 and the headline practical recommendation.] Future work should evaluate agentic coding tools that install dependencies autonomously, code-mixed Hindi--English prompts, and registry-side defences against recurring hallucinated names.
+
+\section*{Data Availability}
+Prompts: public dataset of Spracklen et al., available at \url{https://zenodo.org/records/14676377} and \url{https://github.com/Spracks/PackageHallucination} \cite{dataset2025}. Our sampled prompt IDs, Hindi translations, code and generated outputs: \url{https://github.com/rvansh0025-glitch/research-methodology-vansh-rana}.
+
+\begin{thebibliography}{99}
+
+\bibitem{spracklen2025} J. Spracklen, R. Wijewickrama, A. H. M. N. Sakib, A. Maiti, B. Viswanath, and M. Jadliwala, ``We have a package for you! A comprehensive analysis of package hallucinations by code generating LLMs,'' in \emph{Proc. 34th USENIX Security Symposium}, 2025.
+
+\bibitem{socket2025} Socket Research Team, ``The rise of slopsquatting: How AI hallucinations are fueling a new class of supply chain attacks,'' \url{https://socket.dev/blog/slopsquatting-how-ai-hallucinations-are-fueling-a-new-class-of-supply-chain-attacks}, 2025.
+
+\bibitem{churilov2026} A. Churilov, ``The range shrinks, the threat remains: Re-evaluating LLM package hallucinations on the 2026 frontier-model cohort,'' arXiv:2605.17062, 2026.
+
+\bibitem{mega2023} K. Ahuja \emph{et al.}, ``MEGA: Multilingual evaluation of generative AI,'' in \emph{Proc. Conf. Empirical Methods in Natural Language Processing (EMNLP)}, 2023.
+
+\bibitem{dataset2025} J. Spracklen, R. Wijewickrama, A. H. M. N. Sakib, A. Maiti, B. Viswanath, and M. Jadliwala, ``Package hallucination: Prompt datasets, code samples and hallucinated package lists,'' Zenodo, \url{https://zenodo.org/records/14676377}; GitHub, \url{https://github.com/Spracks/PackageHallucination}, 2025.
+
+\bibitem{ohm2020} M. Ohm, H. Plate, A. Sykosch, and M. Meier, ``Backstabber's knife collection: A review of open source software supply chain attacks,'' in \emph{Proc. Int. Conf. Detection of Intrusions and Malware, and Vulnerability Assessment (DIMVA)}, 2020.
+
+\bibitem{vu2020} D.-L. Vu, I. Pashchenko, F. Massacci, H. Plate, and A. Sabetta, ``Typosquatting and combosquatting attacks on the Python ecosystem,'' in \emph{Proc. IEEE European Symp. Security and Privacy Workshops (EuroS\&PW)}, 2020.
+
+\bibitem{ladisa2023} P. Ladisa, H. Plate, M. Martinez, and O. Barais, ``SoK: Taxonomy of attacks on open-source software supply chains,'' in \emph{Proc. IEEE Symp. Security and Privacy (SP)}, 2023.
+
+\bibitem{ji2023} Z. Ji, N. Lee, R. Frieske, T. Yu, D. Su, Y. Xu, E. Ishii, Y. J. Bang, A. Madotto, and P. Fung, ``Survey of hallucination in natural language generation,'' \emph{ACM Computing Surveys}, vol. 55, no. 12, 2023.
+
+\bibitem{liu2024} F. Liu, Y. Liu, L. Shi, H. Huang, R. Wang, Z. Yang, L. Zhang, Z. Li, and Y. Ma, ``Exploring and evaluating hallucinations in LLM-powered code generation,'' arXiv:2404.00971, 2024.
+
+\bibitem{pearce2022} H. Pearce, B. Ahmad, B. Tan, B. Dolan-Gavitt, and R. Karri, ``Asleep at the keyboard? Assessing the security of GitHub Copilot's code contributions,'' in \emph{Proc. IEEE Symp. Security and Privacy (SP)}, 2022.
+
+\bibitem{lanyado2023} B. Lanyado, ``Can you trust ChatGPT's package recommendations?'' \emph{Vulcan Cyber Research Blog}, 2023.
+
+\bibitem{lanyado2024} ------, ``Diving into AI package hallucinations,'' \emph{Lasso Security Research Blog}, 2024.
+
+\bibitem{cohen1960} J. Cohen, ``A coefficient of agreement for nominal scales,'' \emph{Educational and Psychological Measurement}, vol. 20, no. 1, 1960.
+
+\bibitem{wilson1927} E. B. Wilson, ``Probable inference, the law of succession, and statistical inference,'' \emph{J. American Statistical Association}, vol. 22, no. 158, 1927.
+
+\bibitem{bates2015} D. Bates, M. M\"{a}chler, B. Bolker, and S. Walker, ``Fitting linear mixed-effects models using lme4,'' \emph{J. Statistical Software}, vol. 67, no. 1, 2015.
+
+\bibitem{holm1979} S. Holm, ``A simple sequentially rejective multiple test procedure,'' \emph{Scandinavian J. Statistics}, vol. 6, no. 2, 1979.
+
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,69 @@
+{
+  "t0": "2026-11-01T00:00:00+00:00",
+  "pypi": {
+    "requests": {
+      "exists": true,
+      "first_release": "2011-02-14T00:00:00Z",
+      "n_releases": 150,
+      "has_repo": true,
+      "downloads_last_month": 500000000
+    },
+    "opencv-python": {
+      "exists": true,
+      "first_release": "2016-08-01T00:00:00Z",
+      "n_releases": 90,
+      "has_repo": true,
+      "downloads_last_month": 20000000
+    },
+    "pandas": {
+      "exists": true,
+      "first_release": "2009-12-25T00:00:00Z",
+      "n_releases": 120,
+      "has_repo": true,
+      "downloads_last_month": 300000000
+    },
+    "scikit-learn": {
+      "exists": true,
+      "first_release": "2010-01-05T00:00:00Z",
+      "n_releases": 80,
+      "has_repo": true,
+      "downloads_last_month": 90000000
+    },
+    "flask-ultrasecure-auth": {
+      "exists": false
+    },
+    "py-quick-csvtools": {
+      "exists": true,
+      "first_release": "2026-03-10T00:00:00Z",
+      "n_releases": 1,
+      "has_repo": false,
+      "downloads_last_month": 12
+    }
+  },
+  "npm": {
+    "express": {
+      "exists": true,
+      "first_release": "2010-12-29T00:00:00Z",
+      "n_releases": 280,
+      "has_repo": true,
+      "downloads_last_month": 150000000
+    },
+    "axios": {
+      "exists": true,
+      "first_release": "2014-08-29T00:00:00Z",
+      "n_releases": 110,
+      "has_repo": true,
+      "downloads_last_month": 200000000
+    },
+    "express-jwt-guard-pro": {
+      "exists": false
+    },
+    "@aws-sdk/client-s3": {
+      "exists": true,
+      "first_release": "2019-12-03T00:00:00Z",
+      "n_releases": 600,
+      "has_repo": true,
+      "downloads_last_month": 40000000
+    }
+  }
+}

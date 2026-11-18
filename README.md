@@ -11,7 +11,7 @@ LLM coding assistants sometimes recommend packages that do not exist, and attack
 |---|---|
 | `research-paper/` | IEEE paper, Overleaf source (`main.tex`) |
 | `research-proposal/` | Research proposal (PDF) |
-| `presentation/` | 5-slide Beamer presentation (`beamer.tex`) |
+| `presentation/` | 5-slide Beamer presentation (PDF + `beamer.tex`) |
 | `literature-survey/` | Literature survey table |
 | `dashboard/` | Individual AQI dashboard (Excel) and screenshot |
 | `assignments/` | Worksheets 1–3 and midsem solution with summaries |
